@@ -65,6 +65,34 @@ myproc(void) {
   return p;
 }
 
+int fuck2() {
+        return 0;
+}
+
+int mprotect(char *addr, int len) {
+  pde_t *pgdir = myproc()->pgdir;
+  if (len <= 0 || (uint)addr % PGSIZE || ((uint)addr + (len * PGSIZE)) > myproc()-> sz) return -1;
+
+  int x; char *off; 
+  for (x = 0, off = addr; x < len; x++, off += PGSIZE) 
+    clearptew(pgdir, off);
+
+  //switchuvm(myproc());
+  lcr3(V2P(pgdir));
+  return fuck2();
+}
+
+int munprotect(char *addr, int len) {
+  pde_t *pgdir = myproc()->pgdir;
+  if (len <= 0 || (uint)addr % PGSIZE) return -1;
+
+  int x; char *off; 
+  for (x = 0, off = addr; x < len; x++, off += PGSIZE) 
+    setptew(pgdir, off);
+  lcr3(V2P(pgdir));
+  return 0;
+}
+
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
@@ -129,15 +157,15 @@ userinit(void)
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
   inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
-  p->sz = PGSIZE;
+  p->sz = 2*PGSIZE;
   memset(p->tf, 0, sizeof(*p->tf));
   p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
   p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
   p->tf->es = p->tf->ds;
   p->tf->ss = p->tf->ds;
   p->tf->eflags = FL_IF;
-  p->tf->esp = PGSIZE;
-  p->tf->eip = 0;  // beginning of initcode.S
+  p->tf->esp = 2*PGSIZE;
+  p->tf->eip = 0x1000;  // beginning of initcode.S
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -174,6 +202,10 @@ growproc(int n)
   return 0;
 }
 
+int fuck(void) {
+        return 0;
+}
+
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
@@ -182,6 +214,7 @@ fork(void)
 {
   int i, pid;
   struct proc *np;
+  i = fuck();
   struct proc *curproc = myproc();
 
   // Allocate process.
@@ -189,6 +222,7 @@ fork(void)
     return -1;
   }
 
+  np->sz = fuck();
   // Copy process state from proc.
   if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
     kfree(np->kstack);
@@ -196,7 +230,7 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
-  np->sz = curproc->sz;
+  np->sz = curproc->sz + fuck();
   np->parent = curproc;
   *np->tf = *curproc->tf;
 

@@ -177,8 +177,9 @@ switchuvm(struct proc *p)
   popcli();
 }
 
-// Load the initcode into address 0 of pgdir.
+// Load the initcode into address 0x1000 of pgdir.
 // sz must be less than a page.
+// also mark the first page inaccessible by user code
 void
 inituvm(pde_t *pgdir, char *init, uint sz)
 {
@@ -188,8 +189,9 @@ inituvm(pde_t *pgdir, char *init, uint sz)
     panic("inituvm: more than a page");
   mem = kalloc();
   memset(mem, 0, PGSIZE);
-  mappages(pgdir, 0, PGSIZE, V2P(mem), PTE_W|PTE_U);
+  mappages(pgdir, (char*)0x1000, PGSIZE, V2P(mem), PTE_W|PTE_U);
   memmove(mem, init, sz);
+  clearpteu(pgdir, 0);
 }
 
 // Load a program segment into pgdir.  addr must be page-aligned
@@ -308,6 +310,27 @@ clearpteu(pde_t *pgdir, char *uva)
   if(pte == 0)
     panic("clearpteu");
   *pte &= ~PTE_U;
+}
+
+// Clear PTE_W on a page.
+void
+clearptew(pde_t *pgdir, char *uva) 
+{
+  pte_t *pte;
+  pte = walkpgdir(pgdir, uva, 0);
+  if (pte == 0)
+    panic("clearptew");
+  *pte &= ~PTE_W;
+}
+
+// Sets PTE_W on a page.
+void setptew(pde_t *pgdir, char *uva) 
+{
+  pte_t *pte;
+  pte = walkpgdir(pgdir, uva, 0);
+  if (pte == 0)
+    panic("setptew");
+  *pte |= PTE_W;
 }
 
 // Given a parent process's page table, create a copy
