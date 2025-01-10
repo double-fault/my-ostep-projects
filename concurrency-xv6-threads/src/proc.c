@@ -13,18 +13,8 @@ struct {
   struct thread threads[NTHR];
 } ptable;
 
-// Instead of using a separate lock for ttable, maybe we just use 
-// the ptable lock every time we want to modify ttable?
-/*
-struct {
-  //struct spinlock lock;
-  struct thr thr[NTHR];
-} ttable;
-*/
-
 static struct proc *initproc;
 
-//int nextpid = 1;
 int nexttid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -354,8 +344,9 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = P_ZOMBIE;
-  for (int i = 0; i < curproc->thread_cnt; i++)
-    curproc->threads[i]->state = T_ZOMBIE;
+  for (int i = 0; i < NTHR; i++)
+    if (curproc->threads[i] != 0)
+      curproc->threads[i]->state = T_ZOMBIE;
 
   sched();
   panic("zombie exit");
@@ -382,16 +373,9 @@ wait(void)
         // Found one.
         pid = p->pid;
 
-        for (int i = 0; i < p->thread_cnt; i++) {
-          struct thread *t = p->threads[i];
-          kfree(t->kstack);
-          t->kstack = 0;
-          t->tid = 0;
-          t->proc = 0;
-          t->name[0] = 0;
-          t->state = T_UNUSED;
-          t->killed = 0;
-        }
+        // thread resources are cleaned up by the scheduler
+        // so we just need to clean up stuff in struct proc
+
         freevm(p->pgdir);
         p->pid = 0;
         p->parent = 0;
@@ -426,6 +410,7 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct thread *t;
   struct cpu *c = mycpu();
   c->thread = 0;
   
@@ -442,7 +427,7 @@ scheduler(void)
       // Use the current ticks as a lottery mechanism to 
       // pick which thread must be run
       int pick = ticks % p->thread_cnt;
-      struct thread *t = p->threads[pick];
+      t = p->threads[pick];
 
       // Switch to chosen thread.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -457,6 +442,19 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->thread = 0;
+    }
+    // Clean up zombie thread resources, as nothing really wait()s for
+    // the threads unlike terminated processes
+    // Q: Should I move this clean up code inside the round-robin for loop?
+    for (t = ptable.threads; t < &ptable.threads[NTHR]; t++) {
+      if (t->state == T_ZOMBIE) {
+        kfree(t->kstack);
+        t->tid = 0;
+        t->proc = 0;
+        t->name[0] = 0;
+        t->state = T_UNUSED;
+        t->killed = 0;
+      }
     }
     release(&ptable.lock);
 
