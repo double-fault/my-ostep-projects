@@ -40,6 +40,7 @@ ls(char *path)
     close(fd);
     return;
   }
+  printf(1, "cur pid: %d\n", getpid());
 
   switch(st.type){
   case T_FILE:

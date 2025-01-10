@@ -13,6 +13,40 @@ sys_fork(void)
   return fork();
 }
 
+int sys_clone(void) 
+{
+  int (*fn)(void*, void*);
+  void* arg1; 
+  void* arg2;
+  void* stack;
+
+  if (argptr(1, (char**)&fn, 0) < 0)  
+    return -1;
+  if (argptr(1, (char**)&arg1, 4) < 0)
+    return -1;
+  if (arg1 < 0) return -1;
+  if (argptr(2, (char**)&arg2, *((int*)arg1)) < 0)
+    return -1;
+  if (argptr(3, (char**)&stack, 0) < 0)
+    return -1;
+
+  // bad stack
+  if ((uint)stack >= KERNBASE || (uint)stack < 4096) 
+    return -1;
+
+  return 0;
+  //return clone(fn, arg1, arg2, stack);
+}
+
+int sys_join(void)
+{
+  void **stack;
+  if (argptr(1, (char**)&stack, 0) < 0)
+    return -1;
+  return 0;
+  //return join(stack);
+}
+
 int
 sys_exit(void)
 {

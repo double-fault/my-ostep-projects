@@ -7,6 +7,7 @@
 #include "x86.h"
 #include "elf.h"
 
+// FAILS if process has more than one thread
 int
 exec(char *path, char **argv)
 {
@@ -18,6 +19,9 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
+
+  if (curproc->thread_cnt > 1) 
+    return -1;
 
   begin_op();
 
@@ -92,14 +96,15 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(curproc->name, last, sizeof(curproc->name));
+  safestrcpy(curproc->threads[0]->name, last, sizeof(curproc->threads[0]->name));
 
   // Commit to the user image.
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
-  curproc->tf->eip = elf.entry;  // main
-  curproc->tf->esp = sp;
-  switchuvm(curproc);
+  curproc->threads[0]->tf->eip = elf.entry;  // main
+  curproc->threads[0]->tf->esp = sp;
+  switchuvm(curproc->threads[0]);
   freevm(oldpgdir);
   return 0;
 
